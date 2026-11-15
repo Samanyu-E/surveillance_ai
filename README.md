@@ -4,13 +4,14 @@ Surveillance.ai is a camera monitoring application for restaurants. It brings li
 
 The application processes camera footage on the computer connected to the cameras. Staff use the dashboard to monitor activity, confirm payments, and review situations that may need attention.
 
-1. Live camera dashboard
-
+**1. Live camera dashboard
+**
    We built a dark dashboard with the camera feed as its main focus. It displays tracking boxes, guest IDs, guest states, and the configured dining, counter, and exit areas directly on the footage.
 
    The dashboard includes live camera status, FPS information, prominent summary counts, expandable alert cards, an activity table, and a Guests in view panel. The layout adjusts for smaller screens.
-2. Guest detection and tracking
-
+   
+**2. Guest detection and tracking
+**
    The system uses YOLO person detection and tracking logic to follow people through the camera view. Each tracked guest receives a temporary ID, such as Guest #7, which connects their camera label, guest card, and alerts.
 
    Tracking considers movement, position, and clothing appearance to maintain continuity when people move or briefly overlap. IDs belong to the tracking session; they are not permanent customer identities.
@@ -25,29 +26,32 @@ The application processes camera footage on the computer connected to the camera
    | EXITED | The visit has ended |
    | EMPLOYEE | The tracked person has been classified as an employee |
 
-3. Configurable dining, counter, and exit rules
-
+**3. Configurable dining, counter, and exit rules
+**
    The browser setup page lets users draw zones over a camera preview. Dining, counter, and exit zones are rectangles with 90-degree corners. An exit line is available as an alternative to an exit rectangle.
 
    Users can adjust how long someone must remain in a zone before a rule applies. The system uses these locations and timers to interpret a guest’s visit.
 
    Payment status currently comes from staff confirmation or a counter-dwell assumption. Verifying an actual transaction would require a connection to a payment or point-of-sale system.
-4. Individual payment confirmation
-
+   
+**4. Individual payment confirmation
+**
    Each eligible guest card has a Has paid button. Clicking it submits a payment update for that specific guest and changes their state to PAID in the camera overlay.
 
    The button shows an updating state while the tracking process applies the change, then displays Paid. Other guests remain unchanged. We also retained the group action for marking dining guests paid.
 
    Guest cards use simple icons, following your preference to avoid real guest thumbnails.
-5. New-customer counter-wait alerts
-
+   
+**5. New-customer counter-wait alerts
+**
    When a NEW customer stays in the counter zone for the configured duration, the system creates a counter-wait alert. We set the standard threshold to 5 seconds, and users can change it in Camera setup.
 
    This can draw attention to someone waiting to order or receive assistance. The alert appears in the dashboard and activity log, and it can trigger sound and WhatsApp notifications.
 
    Counter-wait alerts do not create a saved photograph or video clip for that alert.
-6. Possible walk-out detection and evidence
-
+   
+**6. Possible walk-out detection and evidence
+**
    The system can flag a guest who qualified as dining, was observed at an exit, and then leaves without a payment confirmation.
 
    It includes grace periods, cooldowns, and checks for camera coverage to reduce alerts caused by brief tracking loss. With multiple cameras, it considers whether the guest remains visible in another feed.
@@ -59,15 +63,17 @@ The application processes camera footage on the computer connected to the camera
    - A face crop when a suitable face is visible.
 
    Face crops support human review. Their availability depends on image quality, angle, and visibility. Alerts are labeled possible walk-outs because staff still need to verify what happened.
-7. Employee identification
-
+   
+**7. Employee identification
+**
    We added two ways to classify employees: an RGB marker displayed on a phone and a sampled apron color.
 
    Employees receive employee labels and are excluded from guest dining, payment, and walk-out rules while classified as employees. Their cards do not show guest payment controls.
 
    We also implemented your door-overlay preference: enabling both Walk-out rules and RGB employee marker hides the door line visually while preserving its saved counting geometry.
-8. Doorway counts and persistent activity logging
-
+   
+**8. Doorway counts and persistent activity logging
+**
    A configurable doorway line records crossings and determines entry or exit direction. Summary cards display:
 
    | Count | What it represents |
@@ -80,8 +86,9 @@ The application processes camera footage on the computer connected to the camera
    The activity log records timestamped entries, exits, and alerts, including guest or employee IDs and the counts associated with a crossing.
 
    Activity is saved locally and restored when the dashboard starts again. Guest tracking and session counters have their own session lifecycle.
-9. Sound and WhatsApp notifications
-
+   
+**9. Sound and WhatsApp notifications
+**
    Browser alert sounds include Enable sound, Mute, and Test sound controls. New alerts can play a chime; replaying saved history does not repeatedly trigger sounds.
 
    We added a WhatsApp setup section using Twilio. Users can enter their account credentials and sender/recipient numbers, enable automatic notifications, and send a test message.
@@ -89,8 +96,9 @@ The application processes camera footage on the computer connected to the camera
    New counter-wait and possible walk-out alerts can send text containing the guest ID, alert message, and timestamp. Photos and clips stay local. The integration supports an approved template Content SID and displays useful errors when a test cannot be accepted.
 
    Credentials are stored in the local ignored .env file. Real WhatsApp delivery requires the user’s Twilio setup and an internet connection.
-10. Multiple cameras, setup tools, and distribution
-
+   
+**10. Multiple cameras, setup tools, and distribution
+**
 The application supports one to four camera inputs, along with replaying local video files. Optional shared-landmark calibration enables a floor map and coordinated tracking across camera views.
 
 Camera setup includes camera discovery, previews, mirroring, enable/disable controls, zone drawing, employee settings, timing controls, and optional recording.
