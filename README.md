@@ -4,8 +4,8 @@ Surveillance.ai is a camera monitoring application for restaurants. It brings li
 
 The application processes camera footage on the computer connected to the cameras. Staff use the dashboard to monitor activity, confirm payments, and review situations that may need attention.
 
-**1. Live camera dashboard
-**
+# 1. Live camera dashboard
+
    We built a dark dashboard with the camera feed as its main focus. It displays tracking boxes, guest IDs, guest states, and the configured dining, counter, and exit areas directly on the footage.
 
    The dashboard includes live camera status, FPS information, prominent summary counts, expandable alert cards, an activity table, and a Guests in view panel. The layout adjusts for smaller screens.
