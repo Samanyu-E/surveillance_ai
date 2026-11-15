@@ -1,0 +1,41 @@
+# Local environments and secrets; keep the blank settings template.
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.whatsapp-*
+
+# Python/build/test output.
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+/build/
+/dist/
+
+# Model downloads, evidence, recordings, and each installation's camera layout.
+*.pt
+/alerts/
+/recordings/
+/walkout.local.yaml
+/walkout.multi.yaml
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.m4v
+
+# OS metadata and editor temporary files.
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~

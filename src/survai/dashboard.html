@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Surveillance.ai</title>
+  <style>
+
+    :root {
+      color-scheme: dark;
+      --bg: #242424; --panel: #202121; --line: #515454;
+      --ink: #f4f4f2; --text: var(--ink); --muted: #bdbfbd;
+      --mint: #a0dfb2; --amber: #ffd18a; --red: #ffb4ac;
+      --mono: ui-monospace, 'Cascadia Code', monospace;
+    }
+    * { box-sizing: border-box }
+    [hidden] { display: none !important }
+    body {
+      margin: 0; min-height: 100vh; padding: 18px 24px 40px;
+      color: var(--ink); background: radial-gradient(ellipse at 45% 10%, #444644, #303130 65%, #242524);
+      font: 15px/1.4 'Segoe UI', Arial, sans-serif;
+    }
+    main {
+      max-width: 1560px; margin: 0 auto; padding: 0 20px 24px;
+      background: #181a19; border: 1px solid #606460; border-radius: 19px;
+      box-shadow: 0 20px 65px #0004;
+    }
+    h1, h2, p { margin: 0 }
+    h1 { font-size: 26px; font-weight: 700; letter-spacing: -.04em }
+    h2 { font-size: 23px; line-height: 1.2; font-weight: 650; letter-spacing: -.035em }
+    a { color: var(--ink); text-underline-offset: 4px }
+    button, a { -webkit-tap-highlight-color: transparent }
+    button { font: inherit; cursor: pointer }
+    button:disabled { opacity: .45; cursor: default }
+    :focus-visible { outline: 2px solid var(--mint); outline-offset: 4px }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+      min-height: 61px; gap: 12px; margin: 0 -20px; padding: 12px 28px;
+      border-bottom: 1px solid var(--line);
+    }
+    #status { font-size: 12px; color: var(--muted); padding: 5px 10px; border: 1px solid #454945; border-radius: 6px }
+    #status.alert { color: var(--amber); border-color: #80653b; background: #443820 }
+    #status.clear { color: var(--mint) }
+    #session-message { margin: 12px 0 0; color: var(--red) }
+    .layout {
+      display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+      grid-template-areas: 'camera alerts' 'activity guests' 'floor floor';
+      gap: 16px 18px; margin-top: 16px; align-items: stretch;
+    }
+    .layout.has-summary { grid-template-areas: 'camera alerts' 'camera summary' 'activity guests' 'floor floor';
+      grid-template-rows: minmax(0, 1fr) auto auto auto }
+    .summary-panel { grid-area: summary }
+    .panel {
+      min-width: 0; overflow: hidden; border: 1px solid #5d625d; border-radius: 10px;
+      background: linear-gradient(135deg, #262826, #202220);
+    }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+      min-height: 53px; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line);
+    }
+    .camera-panel { grid-area: camera; align-self: start }
+    .camera-panel .panel-head { min-height: 74px }
+    .camera-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 3px; color: var(--muted); font-size: 13px }
+    #camera-status { display: inline-flex; align-items: center; gap: 7px }
+    #camera-status::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: #8d928d }
+    #camera-status[data-live='true']::before { background: var(--mint); box-shadow: 0 0 9px #a0dfb22a }
+    #camera-fps { border-left: 1px solid var(--line); padding-left: 16px; font-variant-numeric: tabular-nums }
+    .session-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+    .session-controls a, .session-controls button, #mark-paid, .demo-actions button, #sound-test {
+      display: inline-block; padding: 7px 13px; border: 1px solid #7b817b; border-radius: 6px;
+      background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-decoration: none;
+    }
+    .session-controls a:hover, .session-controls button:hover:not(:disabled), #mark-paid:hover:not(:disabled),
+    .demo-actions button:hover:not(:disabled), #sound-test:hover:not(:disabled) { background: #ffffff0c; border-color: #b7beb7 }
+    #stop-cameras { color: #e6b9b3; border-color: #6b5552 }
+    .viewport { background: #101310; padding: 0 }
+    #feed, .camera-grid img, #demo-canvas { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #101310 }
+    .camera-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px }
+    .camera-grid.single { grid-template-columns: 1fr }
+    .camera-grid figure { margin: 0; min-width: 0 }
+    .camera-grid figcaption { padding: 7px 10px; color: var(--muted); font-size: 12px }
+    .camera-grid.single figcaption { display: none }
+    #camera-placeholder { display: grid; place-items: center; min-height: 320px; padding: 28px; text-align: center; color: var(--muted) }
+    #door-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 18px }
+    .summary-stat { min-width: 0; padding-left: 12px; border-left: 2px solid #647e69 }
+    .summary-stat dt { font-size: 12px; color: var(--muted) }
+    .summary-stat dd { margin: 3px 0 0 }
+    #door-counts strong { font-size: 32px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+    .alerts-panel { grid-area: alerts; display: flex; flex-direction: column; min-height: 0 }
+    .alerts-panel .history-body { position: relative; flex: 1; min-height: 150px }
+    .sound-controls { display: flex; align-items: center; gap: 10px; font-size: 13px }
+    #sound-toggle { position: relative; width: 37px; height: 21px; padding: 0; border: 1px solid #7b857b; border-radius: 20px; background: #4c534d; font-size: 0; flex-shrink: 0 }
+    #sound-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #f8faf8; transition: transform .15s }
+    #sound-toggle[aria-pressed='true'] { background: #7fa88b; border-color: #90b49a }
+    #sound-toggle[aria-pressed='true']::after { transform: translateX(16px) }
+    .sound-help { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; border-bottom: 1px solid #3c413c }
+    #sound-status { color: var(--muted); font-size: 11px }
+    #sound-test { padding: 3px 8px; font-size: 11px; flex-shrink: 0 }
+    #alerts { position: absolute; inset: 12px; display: flex; flex-direction: column; gap: 10px; overflow: auto; scrollbar-width: thin; scrollbar-color: #686d68 transparent }
+    #empty, #visits-empty, #activity-empty { color: var(--muted); padding: 20px 16px; font-size: 14px }
+    #error { margin: 10px 14px 0; color: var(--red); font-size: 12px }
+    .alert-card { flex-shrink: 0; border: 1px solid #626862; border-radius: 8px; background: #ffffff03; overflow: hidden }
+    .alert-card.walkout { border-color: #927344; background: #624a2680 }
+    .alert-card summary { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto 12px; align-items: center; gap: 12px; min-height: 93px; padding: 9px; cursor: pointer; list-style: none }
+    .alert-card summary::-webkit-details-marker { display: none }
+    .alert-card summary::after { content: '\203a'; justify-self: end; font-size: 26px; color: var(--muted); line-height: 1; transition: transform .15s }
+    .alert-card details[open] summary::after { transform: rotate(90deg) }
+    .alert-thumb { width: 76px; height: 68px; border-radius: 5px; overflow: hidden; background: #333a33; display: grid; place-items: center; color: #a5b4a5 }
+    .alert-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 15% }
+    .alert-thumb img.face { object-fit: contain; object-position: center }
+    .alert-thumb svg { width: 27px; height: 27px }
+    .alert-copy { min-width: 0 }
+    .alert-copy strong { display: block; font-size: 15px; font-weight: 650; line-height: 1.25; overflow-wrap: anywhere }
+    .walkout .alert-copy strong { color: var(--amber) }
+    .alert-copy span { display: block; margin-top: 5px; color: var(--muted); font-size: 13px }
+    .alert-card time { align-self: start; margin-top: 12px; white-space: nowrap; color: #d0d3ce; font-size: 11px; font-variant-numeric: tabular-nums }
+    .alert-detail { padding: 12px; border-top: 1px solid #ffffff1c }
+    .alert-detail p { color: #d0d3ce; font-size: 13px; line-height: 1.5 }
+    .snapshot-link { display: inline-block; margin-top: 8px; font-size: 12px }
+    .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px }
+    .clip { font-size: 12px; color: var(--muted) }
+    .delete { border: 1px solid #79615b; border-radius: 5px; background: transparent; padding: 4px 8px; color: #edc1b7; font-size: 11px }
+    .delete:hover { background: #583c36 }
+    .activity-panel { grid-area: activity }
+    .table-scroll { overflow: auto; max-height: 310px; scrollbar-width: thin }
+    .activity-table { border-collapse: collapse; width: 100%; text-align: left; font-size: 13px }
+    .activity-table th { position: sticky; top: 0; background: #252925; color: var(--muted); font-weight: 400 }
+    .activity-table td, .activity-table th { border-bottom: 1px solid #535953; padding: 9px 16px; vertical-align: top }
+    .activity-table th:first-child, .activity-table td:first-child { white-space: nowrap; width: 135px; font-variant-numeric: tabular-nums }
+    .activity-table th:last-child, .activity-table td:last-child { width: 100px; white-space: nowrap; color: var(--muted) }
+    .activity-table td:nth-child(2) { overflow-wrap: anywhere }
+    .activity-table tr.alert-entry { background: #75562260; color: var(--amber) }
+    .guests-panel { grid-area: guests }
+    #guest-count { font-size: 12px; color: var(--muted) }
+    #visits { display: grid; gap: 10px }
+    .guests-panel .history-body { padding: 12px }
+    .guest-card { display: flex; align-items: center; gap: 18px; border: 1px solid #5a625a; border-radius: 8px; background: #ffffff03; padding: 12px }
+    .guest-avatar { display: grid; place-items: center; width: 36%; max-width: 156px; height: 114px; flex-shrink: 0; border: 1px solid #536253; border-radius: 6px; background: linear-gradient(145deg, #343e36, #252c27); color: var(--mint) }
+    .guest-avatar svg { width: 44px; height: 44px; opacity: .85 }
+    .guest-copy { min-width: 0; flex: 1 }
+    .guest-copy strong { display: block; overflow-wrap: anywhere; font-size: 20px; font-weight: 650 }
+    .guest-copy p { margin-top: 6px; color: var(--muted); font-size: 15px; line-height: 1.4 }
+    .guest-paid { width: 100%; margin-top: 14px; padding: 8px 12px; border: 1px solid #8aa990; border-radius: 5px;
+      color: var(--ink); background: transparent; font-size: 14px }
+    .guest-paid:hover:not(:disabled) { background: #a0dfb21a }
+    .guest-paid.confirmed { opacity: 1; color: var(--mint); border-color: #526d58; background: #233b29 }
+    #visits .out-of-view { opacity: .55 }
+    #mark-paid { width: 100%; margin-top: 12px }
+    #floor-panel { grid-area: floor }
+    #floor-map { display: block; width: 100%; height: auto; background: #131c16 }
+    #room-count { color: var(--muted); font-size: 12px }
+    .demo-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px }
+    .layout.people-only { grid-template-areas: 'camera camera' 'activity guests' 'floor floor' }
+    .layout.people-only.has-summary { grid-template-areas: 'camera summary' 'activity guests' 'floor floor'; grid-template-rows: auto auto auto }
+    .layout.people-only.has-summary .summary-panel { align-self: end }
+    @media (max-width: 1120px) and (min-width: 796px) {
+      .alert-card summary { grid-template-columns: 58px minmax(0, 1fr) 10px; gap: 9px }
+      .alert-thumb { width: 58px; height: 64px; grid-row: 1 / 3 }
+      .alert-copy { grid-column: 2; grid-row: 1 }
+      .alert-card time { grid-column: 2; grid-row: 2; margin: 0 }
+      .alert-card summary::after { grid-column: 3; grid-row: 1 / 3 }
+      .summary-stat dt { font-size: 12px }
+    }
+    @media (max-width: 795px) {
+      body { padding: 10px }
+      main { padding: 0 12px 16px; border-radius: 12px }
+      .topbar { margin: 0 -12px; padding: 12px 16px }
+      .layout, .layout.people-only { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'camera' 'alerts' 'activity' 'guests' 'floor'; grid-template-rows: auto }
+      .layout.has-summary, .layout.people-only.has-summary { grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: 'camera' 'summary' 'alerts' 'activity' 'guests' 'floor'; grid-template-rows: auto }
+      .alerts-panel .history-body { min-height: 120px; max-height: none }
+      #alerts { position: static; max-height: 420px; padding: 12px; margin: 0 }
+      #alerts:empty { padding: 0 }
+      .panel-head { padding: 12px 14px }
+      #camera-placeholder { min-height: 220px }
+      .activity-table td, .activity-table th { padding: 9px 12px }
+    }
+    @media (max-width: 440px) {
+      h1 { font-size: 23px }
+      h2 { font-size: 20px }
+      .summary-stat dt { font-size: 11px }
+      #door-counts { padding: 15px }
+      .alert-card summary { grid-template-columns: 58px minmax(0, 1fr) auto 10px; gap: 8px }
+      .alert-thumb { width: 58px; height: 62px }
+      .alert-copy strong { font-size: 14px }
+      .alert-copy span { font-size: 12px }
+      .alert-card time { font-size: 10px }
+      .camera-grid { grid-template-columns: 1fr }
+      .guest-card { gap: 12px; padding: 10px }
+      .guest-avatar { height: 104px }
+      .guest-copy strong { font-size: 18px }
+      .guest-copy p { font-size: 14px }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::after { transition: none !important } }
+  </style>
+</head>
+<body><main>
+  <header class="topbar">
+    <h1>Surveillance.ai</h1>
+    <p id="status" class="clear" role="status">0 alerts</p>
+  </header>
+  <p id="session-message" role="status" hidden></p>
+  <div class="layout">
+    <section class="panel camera-panel" aria-labelledby="camera-heading">
+      <div class="panel-head">
+        <div>
+          <h2 id="camera-heading">Camera 01</h2>
+          <div class="camera-meta"><span id="camera-status">Connecting</span><span id="camera-fps" hidden></span></div>
+        </div>
+        <nav class="session-controls" id="session-controls" aria-label="Camera controls" hidden>
+          <a href="/setup">Camera setup</a>
+          <button id="stop-cameras" type="button" disabled>Stop cameras</button>
+        </nav>
+      </div>
+      <div class="viewport"><img id="feed" alt="Annotated camera feed"></div>
+    </section>
+    <section class="panel alerts-panel" id="history-panel" aria-labelledby="history-heading">
+      <div class="panel-head">
+        <h2 id="history-heading">Alerts</h2>
+        <div class="sound-controls" role="group" aria-label="Alert sound controls">
+          <span aria-hidden="true">Sound</span>
+          <button id="sound-toggle" type="button" aria-pressed="false">Enable sound</button>
+        </div>
+      </div>
+      <div class="sound-help">
+        <span id="sound-status" role="status">Sound off. Enable it to hear new alerts.</span>
+        <button id="sound-test" type="button" disabled>Test sound</button>
+      </div>
+      <p id="error" role="alert" hidden></p>
+      <div class="history-body">
+        <p id="empty">No alerts yet.</p>
+        <div id="alerts" aria-live="polite"></div>
+      </div>
+    </section>
+    <section class="panel summary-panel" id="summary-panel" aria-labelledby="summary-heading" hidden>
+      <div class="panel-head"><h2 id="summary-heading">Summary</h2></div>
+      <dl id="door-counts" aria-label="Live summary counts" role="status" hidden>
+        <div class="summary-stat"><dt>Inside</dt><dd><strong id="in-store">0</strong></dd></div>
+        <div class="summary-stat"><dt>Entered</dt><dd><strong id="came-in">0</strong></dd></div>
+        <div class="summary-stat"><dt>Exited</dt><dd><strong id="left-count">0</strong></dd></div>
+        <div class="summary-stat"><dt>Staff in view</dt><dd><strong id="employee-count">0</strong></dd></div>
+      </dl>
+    </section>
+    <section class="panel activity-panel" aria-labelledby="activity-heading">
+      <div class="panel-head"><h2 id="activity-heading">Activity</h2></div>
+      <p id="activity-empty">No activity yet.</p>
+      <div class="table-scroll">
+        <table class="activity-table" aria-label="Activity log, newest first">
+          <thead><tr><th scope="col">Time</th><th scope="col">Activity</th><th scope="col">Camera</th></tr></thead>
+          <tbody id="door-activity" hidden></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="panel guests-panel" aria-labelledby="visits-heading">
+      <div class="panel-head"><h2 id="visits-heading">Guests in view</h2><span id="guest-count" hidden></span></div>
+      <div class="history-body">
+        <p id="visits-empty">No guests in view.</p>
+        <div id="visits"></div>
+        <button id="mark-paid" type="button" disabled>Mark dining guests paid</button>
+      </div>
+    </section>
+    <section id="floor-panel" class="panel" hidden>
+      <div class="panel-head"><h2>Shared floor map</h2><p id="room-count" role="status"></p></div>
+      <canvas id="floor-map" width="720" height="380" aria-label="Guest positions and movement trails"></canvas>
+    </section>
+  </div>
+</main><!-- Hosted demo script --><script>
+  class AlertSound {
+    constructor(toggle, test, label) {
+      this.toggle = toggle;
+      this.test = test;
+      this.label = label;
+      this.context = null;
+      this.enabled = false;
+      this.live = false;
+      this.seen = new Set();
+      this.voices = new Set();
+      toggle.onclick = () => this.setEnabled(!this.enabled);
+      test.onclick = () => this.play();
+    }
+
+    async setEnabled(enabled) {
+      this.enabled = enabled;
+      this.toggle.setAttribute('aria-pressed', String(enabled));
+      this.toggle.textContent = enabled ? 'Mute sound' : 'Enable sound';
+      this.test.disabled = !enabled;
+      this.label.textContent = enabled ? 'Sound on for new alerts.' : 'Sound off.';
+      if (!enabled) {
+        for (const voice of this.voices) voice.stop();
+        this.voices.clear();
+        return;
+      }
+      await this.play();
+    }
+
+    receive(event) {
+      const fresh = !this.seen.has(event.id);
+      this.seen.add(event.id);
+      if (fresh && this.live && this.enabled) void this.play();
+    }
+
+    async play() {
+      if (!this.enabled) return;
+      try {
+        const Audio = window.AudioContext || window.webkitAudioContext;
+        if (!Audio) throw new Error('Audio unavailable');
+        if (!this.context || this.context.state === 'closed') this.context = new Audio();
+        if (this.context.state !== 'running') await this.context.resume();
+        if (!this.enabled) return;
+        if (this.context.state !== 'running') throw new Error('Audio blocked');
+        // Collapse simultaneous alerts into one chime and avoid overlapping tones.
+        if (this.voices.size) return;
+        const start = this.context.currentTime;
+        [880, 660].forEach((frequency, index) => {
+          const voice = this.context.createOscillator();
+          const volume = this.context.createGain();
+          const at = start + index * 0.22;
+          voice.frequency.setValueAtTime(frequency, at);
+          volume.gain.setValueAtTime(0, at);
+          volume.gain.linearRampToValueAtTime(0.18, at + 0.015);
+          volume.gain.exponentialRampToValueAtTime(0.001, at + 0.18);
+          voice.connect(volume);
+          volume.connect(this.context.destination);
+          this.voices.add(voice);
+          voice.onended = () => {
+            this.voices.delete(voice);
+            voice.disconnect();
+            volume.disconnect();
+          };
+          voice.start(at);
+          voice.stop(at + 0.2);
+        });
+      } catch {
+        await this.setEnabled(false);
+        this.label.textContent = 'Could not play sound. Check browser audio, then enable sound again.';
+      }
+    }
+  }
+  const alertSound = new AlertSound(
+    document.querySelector('#sound-toggle'), document.querySelector('#sound-test'),
+    document.querySelector('#sound-status'),
+  );
+  const alerts = document.querySelector('#alerts');
+  const status = document.querySelector('#status');
+  const cameraStatus = document.querySelector('#camera-status');
+  const empty = document.querySelector('#empty');
+  const error = document.querySelector('#error');
+  const visits = document.querySelector('#visits');
+  function makeIcon(kind = 'person') {
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    for (const [key, value] of Object.entries({
+      viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5', 'aria-hidden': 'true',
+    })) icon.setAttribute(key, value);
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', '12');
+    circle.setAttribute('cy', kind === 'clock' ? '12' : '8');
+    circle.setAttribute('r', kind === 'clock' ? '9' : '4');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', kind === 'clock' ? 'M12 6v6l4 2' : 'M4 22v-2a8 8 0 0 1 16 0v2');
+    icon.append(circle, path);
+    return icon;
+  }
+  function formatDwell(seconds) {
+    return seconds >= 60 ? `${Math.floor(seconds / 60)} min` : `${Math.floor(seconds)} sec`;
+  }
+  let lastVisitCards = '';
+  const pendingPayments = new Set();
+  function renderVisits(profiles, includeHidden = false, peopleOnly = false) {
+    const ids = new Set(profiles.map(profile => profile.track_id));
+    for (const id of pendingPayments) {
+      if (!ids.has(id) || profiles.some(profile => profile.track_id === id &&
+          (profile.state === 'PAID' || profile.employee || profile.state === 'EMPLOYEE'))) {
+        pendingPayments.delete(id);
+      }
+    }
+    const paymentsEnabled = Boolean(window.startHostedDemo) || (webMode && cameraStatus.dataset.live === 'true');
+    const cards = profiles.filter(profile => includeHidden || profile.visible).map(profile => [
+      profile.track_id, profile.state, profile.first_seen, profile.cameras || [], profile.visible,
+      profile.dwell_seconds == null ? null : Math.floor(profile.dwell_seconds), profile.employee, peopleOnly,
+      pendingPayments.has(profile.track_id), paymentsEnabled,
+    ]);
+    const signature = JSON.stringify(cards);
+    if (signature === lastVisitCards) return;
+    lastVisitCards = signature;
+    document.querySelector('#visits-empty').hidden = cards.length > 0;
+    visits.replaceChildren(...cards.map(([id, state, firstSeen, cameras, visible, dwell, employee, peopleOnly, pending, canPay]) => {
+      const card = document.createElement('article');
+      card.className = `guest-card${visible ? '' : ' out-of-view'}`;
+      const avatar = document.createElement('div');
+      avatar.className = 'guest-avatar';
+      avatar.setAttribute('aria-hidden', 'true');
+      avatar.append(makeIcon());
+      const copy = document.createElement('div');
+      copy.className = 'guest-copy';
+      const title = document.createElement('strong');
+      title.textContent = `${employee ? "Employee" : peopleOnly ? "Customer" : "Guest"} #${id}`;
+      const status = document.createElement('p');
+      const labels = { NEW: 'New', DINING: 'Dining', PAID: 'Paid', EXITED: 'Exited' };
+      status.textContent = labels[state] || state;
+      if (state === 'DINING' && dwell !== null) status.textContent += ` \u00b7 ${formatDwell(dwell)}`;
+      card.title = [
+        `First seen ${new Date(firstSeen).toLocaleTimeString()}`,
+        visible ? cameras.map(camera => camera.toUpperCase()).join(' \u00b7 ') : 'Out of view',
+      ].filter(Boolean).join(' \u00b7 ');
+      copy.append(title);
+      if (!peopleOnly && !employee) copy.append(status);
+      if (!visible) {
+        const details = document.createElement('p');
+        details.textContent = 'Out of view';
+        copy.append(details);
+      }
+      if (!employee && !peopleOnly && state !== 'EXITED') {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `guest-paid${state === 'PAID' ? ' confirmed' : ''}`;
+        button.textContent = state === 'PAID' ? 'Paid' : pending ? 'Updating\u2026' : 'Has paid';
+        button.setAttribute('aria-label', state === 'PAID' ? `Guest #${id} has paid` : `Mark Guest #${id} as paid`);
+        button.disabled = state === 'PAID' || pending || !visible || !canPay;
+        button.onclick = () => markGuestPaid(id, button);
+        copy.append(button);
+      }
+      card.append(avatar, copy);
+      return card;
+    }));
+  }
+  function showAlertThumbnail(thumbnail, event) {
+    const fallback = () => thumbnail.replaceChildren(makeIcon(event.type === 'counter_wait' ? 'clock' : 'person'));
+    if (event.type === 'counter_wait' || !(event.face_path || event.snapshot_path)) {
+      fallback();
+      return;
+    }
+    const image = document.createElement('img');
+    const face = Boolean(event.face_path);
+    image.className = face ? 'face' : '';
+    image.src = event.face_path || event.snapshot_path;
+    image.alt = face ? 'Face captured before the possible walk-out' : 'Guest before the possible walk-out';
+    image.onerror = () => {
+      if (image.className === 'face' && event.snapshot_path) {
+        image.className = '';
+        image.alt = 'Guest before the possible walk-out';
+        image.src = event.snapshot_path;
+      } else fallback();
+    };
+    thumbnail.replaceChildren(image);
+  }
+  const displayAlert = event => {
+    alertSound.receive(event);
+    empty.hidden = true;
+    const existing = document.getElementById(`alert-${event.id}`);
+    if (existing) {
+      showAlertThumbnail(existing.querySelector('.alert-thumb'), event);
+      if (!event.snapshot_path) existing.querySelector('.snapshot-link')?.remove();
+      showClip(existing.querySelector('.clip'), event);
+      return;
+    }
+    const card = document.createElement('article');
+    card.id = `alert-${event.id}`;
+    card.className = `alert-card ${event.severity}${event.type === 'possible_walkout' ? ' walkout' : ''}`;
+    const details = document.createElement('details');
+    const heading = document.createElement('summary');
+    const thumbnail = document.createElement('div');
+    thumbnail.className = 'alert-thumb';
+    thumbnail.append(makeIcon(event.type === 'counter_wait' ? 'clock' : 'person'));
+    const copy = document.createElement('div');
+    copy.className = 'alert-copy';
+    const title = document.createElement('strong');
+    const titles = { possible_walkout: 'Possible walk-out', counter_wait: 'Counter wait' };
+    title.textContent = titles[event.type] || event.type.replaceAll('_', ' ');
+    const guest = document.createElement('span');
+    guest.textContent = (event.track_ids || []).map(id => `Guest #${id}`).join(', ') || 'Review alert';
+    if (event.type === 'counter_wait' && event.dwell_seconds != null) {
+      guest.textContent += ` \u00b7 ${formatDwell(event.dwell_seconds)}`;
+    }
+    copy.append(title, guest);
+    const time = document.createElement('time');
+    time.dateTime = event.timestamp;
+    time.textContent = new Date(event.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    heading.append(thumbnail, copy, time);
+    showAlertThumbnail(thumbnail, event);
+    const description = document.createElement('p');
+    description.textContent = event.message;
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const clip = document.createElement('div');
+    clip.className = 'clip';
+    showClip(clip, event);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'delete';
+    button.textContent = 'Delete';
+    button.setAttribute('aria-label', 'Delete alert');
+    button.onclick = () => deleteAlert(event.id, button);
+    actions.append(clip, button);
+    const body = document.createElement('div');
+    body.className = 'alert-detail';
+    body.append(description);
+    if (event.snapshot_path && event.type !== 'counter_wait') {
+      const snapshot = document.createElement('a');
+      snapshot.className = 'snapshot-link';
+      snapshot.href = event.snapshot_path;
+      snapshot.target = '_blank';
+      snapshot.rel = 'noopener';
+      snapshot.textContent = 'View person snapshot';
+      body.append(snapshot);
+    }
+    body.append(actions);
+    details.append(heading, body);
+    card.append(details);
+    alerts.prepend(card);
+    if (alerts.childElementCount > 100) alerts.lastElementChild.remove();
+  };
+
+  function removeAlert(id) {
+    document.getElementById(`alert-${id}`)?.remove();
+    empty.hidden = alerts.childElementCount > 0;
+  }
+
+  async function deleteAlert(id, button) {
+    if (window.startHostedDemo) {
+      deleteHostedAlert(id);
+      return;
+    }
+    button.disabled = true;
+    error.hidden = true;
+    try {
+      const response = await fetch(`/api/alerts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Delete request failed');
+      removeAlert(id);
+      await refresh();
+    } catch {
+      error.textContent = 'Could not delete this alert. Try again.';
+      error.hidden = false;
+      button.disabled = false;
+    }
+  }
+
+  function showClip(container, event) {
+    container.replaceChildren();
+    if (event.clip_status === 'ready' && event.clip_path) {
+      const link = document.createElement('a');
+      link.href = event.clip_path;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = 'Play evidence clip';
+      container.append(link);
+    } else if (event.clip_status) {
+      const labels = { pending: 'Preparing clip…', expired: 'Clip expired', unavailable: 'Clip unavailable' };
+      container.textContent = labels[event.clip_status];
+    }
+  }
+  const viewport = document.querySelector('.viewport');
+  const sessionControls = document.querySelector('#session-controls');
+  const markPaid = document.querySelector('#mark-paid');
+  const stopCameras = document.querySelector('#stop-cameras');
+  const sessionMessage = document.querySelector('#session-message');
+  let webMode = false;
+  let sessionMode = '';
+  let cameraKey = '';
+  let sending = false;
+  function showSessionMessage(text) {
+    sessionMessage.hidden = !text;
+    sessionMessage.textContent = text;
+  }
+  async function markGuestPaid(id, button) {
+    if (window.startHostedDemo) {
+      window.markHostedGuestPaid(id);
+      return;
+    }
+    pendingPayments.add(id);
+    button.disabled = true;
+    button.textContent = 'Updating\u2026';
+    showSessionMessage('');
+    try {
+      const response = await fetch(`/api/visits/${encodeURIComponent(id)}/pay`, { method: 'POST' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || 'Could not confirm this payment. Try again.');
+      }
+    } catch (error) {
+      pendingPayments.delete(id);
+      showSessionMessage(error.message);
+    }
+    lastVisitCards = '';
+    await refresh();
+  }
+  async function cameraAction(action) {
+    sending = markPaid.disabled = stopCameras.disabled = true;
+    showSessionMessage('');
+    try {
+      const response = await fetch(`/api/session/${action}`, { method: 'POST' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || 'Camera command failed.');
+      }
+    } catch (error) {
+      showSessionMessage(error.message);
+    } finally {
+      sending = false;
+      await refresh();
+    }
+  }
+  markPaid.onclick = () => cameraAction('pay');
+  stopCameras.onclick = () => cameraAction('stop');
+  let lastActivity = '';
+  const doorTime = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true,
+  });
+  function renderDoorway(counts) {
+    document.querySelector('#summary-panel').hidden = !counts;
+    document.querySelector('.layout').classList.toggle('has-summary', Boolean(counts));
+    document.querySelector('#door-counts').hidden = !counts;
+    if (counts) {
+      for (const [id, key] of [
+        ['in-store', 'in_store'], ['came-in', 'came_in'], ['left-count', 'left'], ['employee-count', 'employees'],
+      ]) {
+        const value = String(counts[key] ?? 0);
+        const field = document.getElementById(id);
+        if (field.textContent !== value) field.textContent = value;
+      }
+    }
+  }
+  function renderActivity(activity = []) {
+    const list = document.querySelector('#door-activity');
+    list.hidden = !activity.length;
+    document.querySelector('#activity-empty').hidden = activity.length > 0;
+    const signature = JSON.stringify(activity);
+    if (signature === lastActivity) return;
+    lastActivity = signature;
+    list.replaceChildren(...activity.map(record => {
+      const row = document.createElement('tr');
+      const time = doorTime.format(new Date(record.timestamp));
+      const timestamp = document.createElement('td');
+      timestamp.textContent = time;
+      const message = document.createElement('td');
+      message.textContent = record.message;
+      const camera = document.createElement('td');
+      camera.textContent = record.camera || '\u2014';
+      row.append(timestamp, message, camera);
+      if (record.kind === 'alert') row.className = 'alert-entry';
+      return row;
+    }));
+  }
+  const refresh = async () => {
+    try {
+      const response = await fetch('/api/status', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Status request failed');
+      const current = await response.json();
+      const peopleOnly = current.walkout_enabled === false;
+      document.querySelector('.layout').classList.toggle('people-only', peopleOnly);
+      document.querySelector('#history-panel').hidden = peopleOnly;
+      status.hidden = peopleOnly;
+      markPaid.hidden = peopleOnly;
+      const guestCount = document.querySelector('#guest-count');
+      guestCount.hidden = !peopleOnly;
+      const countText = `${current.customers_in_view} ${current.customers_in_view === 1 ? 'guest' : 'guests'}`;
+      if (guestCount.textContent !== countText) guestCount.textContent = countText;
+      document.querySelector('#visits-heading').textContent = peopleOnly ? 'People in view' : 'Guests in view';
+      document.querySelector('#visits-empty').textContent = peopleOnly ? 'No people in view.' : 'No guests in view.';
+      renderDoorway(current.door_counts);
+      renderActivity(current.activity_log);
+      const count = current.total_alerts;
+      const label = `${count} ${count === 1 ? 'alert' : 'alerts'}`;
+      if (status.textContent !== label) status.textContent = label;
+      status.className = count && current.alert_active ? 'alert' : 'clear';
+      cameraStatus.textContent = current.status === 'Monitoring' ? 'Live' : current.status;
+      cameraStatus.dataset.live = String(current.status === 'Monitoring');
+      const visitsResponse = await fetch('/api/visits', { cache: 'no-store' });
+      const floorResponse = await fetch('/api/floor', { cache: 'no-store' });
+      const floor = floorResponse.ok ? await floorResponse.json() : null;
+      if (visitsResponse.ok) renderVisits(await visitsResponse.json(), floor !== null, peopleOnly);
+      if (floor !== null) renderFloor(floor);
+      else document.querySelector('#floor-panel').hidden = true;
+      const cameraResponse = await fetch('/api/cameras', { cache: 'no-store' });
+      if (webMode) {
+        const sessionResponse = await fetch('/api/session', { cache: 'no-store' });
+        if (sessionResponse.ok) {
+          const session = await sessionResponse.json();
+          sessionMode = session.mode;
+          markPaid.disabled = sending || session.mode !== 'monitoring' || current.status !== 'Monitoring';
+          stopCameras.disabled = sending || !['preview', 'monitoring'].includes(session.mode);
+          if (session.error) showSessionMessage(session.error);
+        }
+      }
+      if (cameraResponse.ok) renderCameras(await cameraResponse.json());
+    } catch {
+      status.textContent = 'Dashboard disconnected';
+      status.className = '';
+      cameraStatus.textContent = 'Offline';
+      cameraStatus.dataset.live = 'false';
+      document.querySelector('#camera-fps').hidden = true;
+      renderVisits([]);
+    }
+  };
+  function renderFloor(floor) {
+    document.querySelector('#floor-panel').hidden = false;
+    const count = document.querySelector('#room-count');
+    count.textContent = `Guests in room: ${floor.guests.filter(guest => guest.present).length}`;
+    const canvas = document.querySelector('#floor-map');
+    const context = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    context.clearRect(0, 0, width, height);
+    const point = ([x, y]) => [
+      45 + Math.max(-0.05, Math.min(1.05, x)) * (width - 90),
+      30 + Math.max(-0.05, Math.min(1.05, y)) * (height - 60),
+    ];
+    context.strokeStyle = '#29394e';
+    for (let i = 0; i <= 10; i++) {
+      const q = i / 10;
+      context.beginPath();
+      context.moveTo(...point([q, 0]));
+      context.lineTo(...point([q, 1]));
+      context.moveTo(...point([0, q]));
+      context.lineTo(...point([1, q]));
+      context.stroke();
+    }
+    const palette = ['#90d3ff', '#81f4c1', '#dba2f8', '#ffcf9b', '#aed0f9'];
+    context.font = '15px monospace';
+    Object.values(floor.coverage).forEach((camera, index) => {
+      context.strokeStyle = context.fillStyle = palette[index % palette.length];
+      context.globalAlpha = 0.42;
+      context.setLineDash([5, 6]);
+      context.beginPath();
+      camera.outline.forEach((position, i) => {
+        if (i) context.lineTo(...point(position));
+        else context.moveTo(...point(position));
+      });
+      context.closePath();
+      context.stroke();
+      context.setLineDash([]);
+      context.fillText(camera.name, 45 + index * 155, height - 7);
+    });
+    for (const guest of floor.guests) {
+      context.strokeStyle = context.fillStyle = palette[(guest.id - 1) % palette.length];
+      guest.trail.slice(1).forEach((position, index) => {
+        context.globalAlpha = 0.6 * (index + 1) / guest.trail.length;
+        context.beginPath();
+        context.moveTo(...point(guest.trail[index]));
+        context.lineTo(...point(position));
+        context.stroke();
+      });
+      context.globalAlpha = guest.visible ? 1 : 0.35;
+      const [x, y] = point(guest.trail.at(-1));
+      context.beginPath();
+      context.arc(x, y, 6, 0, Math.PI * 2);
+      context.fill();
+      context.fillText(`Guest ${guest.id}`, x + 10, y - 8);
+    }
+    context.globalAlpha = 1;
+  }
+  function renderCameras(cameras) {
+    const fps = document.querySelector('#camera-fps');
+    fps.hidden = !cameras.length;
+    if (cameras.length) {
+      document.querySelector('#camera-heading').textContent = cameras.length === 1 ? cameras[0].name : 'Camera feeds';
+      fps.textContent = `${cameras.reduce((total, camera) => total + camera.fps, 0).toFixed(0)} FPS`;
+    }
+    if (!cameras.length) {
+      if (webMode && (cameraKey || !document.querySelector('#camera-placeholder'))) {
+        cameraKey = '';
+        viewport.classList.remove('camera-grid');
+        const placeholder = document.createElement('p');
+        placeholder.id = 'camera-placeholder';
+        viewport.replaceChildren(placeholder);
+      }
+      const placeholder = document.querySelector('#camera-placeholder');
+      if (placeholder) placeholder.textContent = sessionMode === 'idle' ?
+        'Open Camera setup to connect previews or start monitoring.' :
+        sessionMode === 'preview' ? 'Camera previews are running in Camera setup.' : 'Waiting for camera feeds…';
+      return;
+    }
+    const key = JSON.stringify(cameras.map(camera => camera.id));
+    if (key !== cameraKey) {
+      cameraKey = key;
+      viewport.classList.add('camera-grid');
+      viewport.classList.toggle('single', cameras.length === 1);
+      viewport.replaceChildren(...cameras.map(camera => {
+        const tile = document.createElement('figure');
+        const caption = document.createElement('figcaption');
+        caption.id = `camera-${camera.id}`;
+        const image = document.createElement('img');
+        image.src = `/video/${encodeURIComponent(camera.id)}`;
+        image.alt = `${camera.name} feed`;
+        tile.append(caption, image);
+        return tile;
+      }));
+    }
+    for (const camera of cameras) {
+      document.getElementById(`camera-${camera.id}`).textContent =
+        `${camera.name} · ${camera.status} · ${camera.fps.toFixed(1)} FPS`;
+    }
+  }
+  if (window.startHostedDemo) {
+    alertSound.live = true;
+    window.startHostedDemo({ renderVisits, displayAlert, removeAlert, status, cameraStatus });
+  } else if (location.protocol === 'file:') {
+    status.textContent = 'Start the demo with --dashboard, then ';
+    const link = document.createElement('a');
+    link.href = 'http://127.0.0.1:8765/';
+    link.textContent = 'open the live dashboard';
+    status.append(link);
+    document.querySelector('.layout').hidden = true;
+  } else {
+    fetch('/api/session', { cache: 'no-store' }).then(response => {
+      webMode = response.ok;
+      sessionControls.hidden = !webMode;
+      if (!webMode) {
+        const feed = document.querySelector('#feed');
+        if (feed) feed.src = '/video';
+      }
+      refresh();
+    }).catch(refresh);
+    const stream = new EventSource('/events');
+    stream.addEventListener('ready', () => { alertSound.live = true; });
+    stream.onmessage = message => {
+      const event = JSON.parse(message.data);
+      displayAlert(event);
+    };
+    stream.addEventListener('alert-deleted', message => {
+      removeAlert(message.data);
+      refresh();
+    });
+    refresh();
+    setInterval(refresh, 1000);
+  }
+</script></body>
+</html>

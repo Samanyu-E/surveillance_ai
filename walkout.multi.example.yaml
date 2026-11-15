@@ -1,0 +1,71 @@
+# Snapshot of the current working setup. Copy to walkout.multi.yaml for local use.
+# Reconfigure camera inputs and geometry in Camera setup; see README.md.
+cameras:
+- id: cam1
+  name: Cam
+  source: 0
+  mirror: true
+  enabled: true
+  employee_marker: true
+  walkout_enabled: true
+  zones:
+    anchor: center
+    dining_zone:
+    - - 0.018769551616266946
+      - 0.016697588126159554
+    - - 0.5005213764337852
+      - 0.016697588126159554
+    - - 0.5005213764337852
+      - 0.9573283858998145
+    - - 0.018769551616266946
+      - 0.9573283858998145
+    pay_zone:
+    - - 0.677249
+      - 0.631001
+    - - 0.851852
+      - 0.631001
+    - - 0.851852
+      - 0.828532
+    - - 0.677249
+      - 0.828532
+    exit_band:
+    - - 0.9343065693430657
+      - 0.0074211502782931356
+    - - 0.9968717413972888
+      - 0.0074211502782931356
+    - - 0.9968717413972888
+      - 1
+    - - 0.9343065693430657
+      - 1
+    exit_line: null
+  floor_points: null
+  door_line:
+  - - 0.918871
+    - 0.014893
+  - - 0.922399
+    - 0.993141
+  apron_color: null
+identity:
+  enroll_frames: 10
+  match_threshold: 0.45
+  ambiguity_margin: 0.08
+  min_box_height_px: 120
+  max_overlap_iou: 0.3
+  relink_seconds: 5.0
+  descriptor_ema: 0.1
+  sample_every: 2
+  max_floor_distance: 0.2
+walkout: null
+image_size: 416
+target_fps: 12.0
+fusion:
+  tick_hz: 10.0
+  max_skew_ms: 100.0
+  plane: floor
+  same_view_order: true
+  max_floor_dist: 0.18
+  color_weight: 0.15
+  min_hits: 3
+  lost_grace_seconds: 2.0
+  forget_seconds: 30.0
+calibration: null

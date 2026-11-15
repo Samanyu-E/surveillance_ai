@@ -1,0 +1,13 @@
+counter_zone: [[0.12, 0.40], [0.59, 0.40], [0.59, 0.97], [0.12, 0.97]]
+exit_line: [[0.74, 0.20], [0.74, 1.0]]
+wait_seconds: 10
+queue_count: 3
+crowd_count: 4
+bag_seconds: 4
+bag_radius: 0.17
+bag_motion: 0.035
+cooldown_seconds: 20
+snapshot_days: 2
+image_size: 416
+weights: yolov8n.pt
+summary_model: gpt-4.1-mini
