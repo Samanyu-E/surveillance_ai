@@ -118,19 +118,3 @@ node scripts/build-dashboard.mjs
 ```
 
 This generates `dist/index.html` with simulated guests and alerts. `vercel.json` selects this static build. The live Python camera server is a separate process; publishing the static demo does not start it.
-
-## What to upload to GitHub
-
-Commit the source, tests, launchers, scripts, README, blank `.env.example`, and `walkout.multi.example.yaml`. `.gitignore` excludes local credentials, environments, camera layouts, video files, evidence, model weights, caches, and generated builds. Use Git to select files; dragging an entire folder into GitHub's upload page does not apply local `.gitignore` rules.
-
-After reviewing the files with `git status`, you can create your first commit and connect your own repository:
-
-```sh
-git add .
-git status
-git commit -m "Add Surveillance.ai camera dashboard"
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
-git push -u origin main
-```
-
-Replace the repository URL with your own. No GitHub remote or publication is configured by the local setup scripts.
