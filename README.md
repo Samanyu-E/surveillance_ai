@@ -1,150 +1,137 @@
+
 # Surveillance.ai
 
-Surveillance.ai is a camera monitoring application for restaurants. It brings live video, guest tracking, occupancy counts, payment-status controls, and alerts into one browser dashboard.
+**Surveillance.ai** is a camera-monitoring application for restaurants. It combines live video, guest tracking, estimated occupancy, payment-status controls, and alerts in a browser-based dashboard.
 
-The application processes camera footage on the computer connected to the cameras. Staff use the dashboard to monitor activity, confirm payments, and review situations that may need attention.
+Video processing runs locally on the computer connected to the cameras. Staff can use the dashboard to monitor activity, mark guests as paid, and review events that may need attention.
 
-   # 1. Live camera dashboard
+> **Important:** A **PAID** status is based on staff confirmation or a configured counter-dwell rule; it does **not** verify a transaction with a point-of-sale (POS) system. Likewise, a **possible walk-out** alert is a prompt for staff review, not proof that someone left without paying.
 
-   We built a dark dashboard with the camera feed as its main focus. It displays tracking boxes, guest IDs, guest states, and the configured dining, counter, and exit areas directly on the footage.
+## Features
 
-   The dashboard includes live camera status, FPS information, prominent summary counts, expandable alert cards, an activity table, and a Guests in view panel. The layout adjusts for smaller screens.
-   
-**2. Guest detection and tracking
-**
-   The system uses YOLO person detection and tracking logic to follow people through the camera view. Each tracked guest receives a temporary ID, such as Guest #7, which connects their camera label, guest card, and alerts.
+### Live dashboard
 
-   Tracking considers movement, position, and clothing appearance to maintain continuity when people move or briefly overlap. IDs belong to the tracking session; they are not permanent customer identities.
+- Live camera feeds with person-tracking boxes, temporary IDs, and guest states.
+- Dining, counter, and exit zones displayed over the footage.
+- Camera connection status and frames-per-second (FPS) information.
+- Occupancy summaries, expandable alerts, an activity table, and a **Guests in view** panel.
+- A responsive dark interface for different screen sizes.
 
-   Guests move through these states:
+### Guest detection and tracking
 
-   | State | Meaning |
-   |---|---|
-   | NEW | A newly tracked guest |
-   | DINING | The guest has spent the configured time in the dining zone |
-   | PAID | Staff confirmed payment, or the configured counter-dwell rule marked them paid |
-   | EXITED | The visit has ended |
-   | EMPLOYEE | The tracked person has been classified as an employee |
+Ultralytics YOLO detects people, while ByteTrack and additional tracking logic help maintain guest identities across movement and brief overlaps. Tracking considers position, movement, and clothing appearance.
 
-**3. Configurable dining, counter, and exit rules
-**
-   The browser setup page lets users draw zones over a camera preview. Dining, counter, and exit zones are rectangles with 90-degree corners. An exit line is available as an alternative to an exit rectangle.
+Each person receives a temporary session ID (for example, `Guest #7`) that links the camera overlay, guest card, and relevant alerts. **IDs are not permanent customer identities.**
 
-   Users can adjust how long someone must remain in a zone before a rule applies. The system uses these locations and timers to interpret a guest’s visit.
+| State | Meaning |
+| --- | --- |
+| `NEW` | A newly tracked guest |
+| `DINING` | The guest has remained in the dining zone for the configured duration |
+| `PAID` | Staff marked the guest as paid, or a configured counter-dwell rule applied |
+| `EXITED` | The tracked visit ended |
+| `EMPLOYEE` | The person has been classified as an employee |
 
-   Payment status currently comes from staff confirmation or a counter-dwell assumption. Verifying an actual transaction would require a connection to a payment or point-of-sale system.
-   
-**4. Individual payment confirmation
-**
-   Each eligible guest card has a Has paid button. Clicking it submits a payment update for that specific guest and changes their state to PAID in the camera overlay.
+### Configurable zones and payment controls
 
-   The button shows an updating state while the tracking process applies the change, then displays Paid. Other guests remain unchanged. We also retained the group action for marking dining guests paid.
+Use **Camera setup** to draw rectangular **Dining**, **Counter**, and **Exit** zones on a camera preview. An exit line can be used instead of an exit rectangle. Zone dwell times and exit grace periods are configurable.
 
-   Guest cards use simple icons, following your preference to avoid real guest thumbnails.
-   
-**5. New-customer counter-wait alerts
-**
-   When a NEW customer stays in the counter zone for the configured duration, the system creates a counter-wait alert. We set the standard threshold to 5 seconds, and users can change it in Camera setup.
+Each eligible guest card includes a **Has paid** button that updates only that guest. The button shows an updating state until the change is applied, then displays **Paid**. A separate group action can mark dining guests as paid. Guest cards use icons rather than guest photographs.
 
-   This can draw attention to someone waiting to order or receive assistance. The alert appears in the dashboard and activity log, and it can trigger sound and WhatsApp notifications.
+The **Counter** zone is stored internally as `pay_zone`. Its payment-dwell rule is an assumption, not POS verification.
 
-   Counter-wait alerts do not create a saved photograph or video clip for that alert.
-   
-**6. Possible walk-out detection and evidence
-**
-   The system can flag a guest who qualified as dining, was observed at an exit, and then leaves without a payment confirmation.
+### Counter-wait and possible walk-out alerts
 
-   It includes grace periods, cooldowns, and checks for camera coverage to reduce alerts caused by brief tracking loss. With multiple cameras, it considers whether the guest remains visible in another feed.
+**Counter-wait alert:** When a `NEW` guest remains in the counter zone beyond the configured threshold (5 seconds by default), the system creates an alert that can appear on the dashboard, enter the activity log, and trigger sound or WhatsApp notifications. This alert does **not** save a photo or clip.
 
-   A possible walk-out can generate:
-   - An alert containing the guest ID and time.
-   - A selected person snapshot from recent footage.
-   - A short clip covering footage around the event.
-   - A face crop when a suitable face is visible.
+**Possible walk-out alert:** The system can flag a guest who met the dining requirement, was observed at an exit, and then left without a recorded payment confirmation. Grace periods, cooldowns, and camera-coverage checks help reduce false alerts. With multiple cameras, the system also checks whether the guest is still visible in another feed.
 
-   Face crops support human review. Their availability depends on image quality, angle, and visibility. Alerts are labeled possible walk-outs because staff still need to verify what happened.
-   
-**7. Employee identification
-**
-   We added two ways to classify employees: an RGB marker displayed on a phone and a sampled apron color.
+Possible walk-out evidence can include:
 
-   Employees receive employee labels and are excluded from guest dining, payment, and walk-out rules while classified as employees. Their cards do not show guest payment controls.
+- A guest ID and event timestamp.
+- A selected snapshot from recent footage.
+- A short video clip around the event.
+- A best-effort face crop, when the image angle and quality allow it.
 
-   We also implemented your door-overlay preference: enabling both Walk-out rules and RGB employee marker hides the door line visually while preserving its saved counting geometry.
-   
-**8. Doorway counts and persistent activity logging
-**
-   A configurable doorway line records crossings and determines entry or exit direction. Summary cards display:
+Saved evidence supports **human review**. A missing payment confirmation or tracking error does not establish that a guest failed to pay.
 
-   | Count | What it represents |
-   |---|---|
-   | Inside | Estimated occupancy from recorded entries minus exits |
-   | Entered | Recorded entries during the session |
-   | Exited | Recorded exits during the session |
-   | Staff in view | Currently visible tracked employees |
+### Employee identification
 
-   The activity log records timestamped entries, exits, and alerts, including guest or employee IDs and the counts associated with a crossing.
+Employees can be classified using either an **RGB marker** displayed on a phone or a **sampled apron color**. While classified as employees, they have employee labels, do not show guest payment controls, and are excluded from guest dining, payment, and walk-out rules.
 
-   Activity is saved locally and restored when the dashboard starts again. Guest tracking and session counters have their own session lifecycle.
-   
-**9. Sound and WhatsApp notifications
-**
-   Browser alert sounds include Enable sound, Mute, and Test sound controls. New alerts can play a chime; replaying saved history does not repeatedly trigger sounds.
+When both **Walk-out rules** and **RGB employee marker** are enabled, the door-counting line is hidden from the video overlay. Its saved counting geometry remains available.
 
-   We added a WhatsApp setup section using Twilio. Users can enter their account credentials and sender/recipient numbers, enable automatic notifications, and send a test message.
+### Doorway counts and activity history
 
-   New counter-wait and possible walk-out alerts can send text containing the guest ID, alert message, and timestamp. Photos and clips stay local. The integration supports an approved template Content SID and displays useful errors when a test cannot be accepted.
+A configurable doorway line identifies entry and exit crossings. Dashboard summary cards include:
 
-   Credentials are stored in the local ignored .env file. Real WhatsApp delivery requires the user’s Twilio setup and an internet connection.
-   
-**10. Multiple cameras, setup tools, and distribution
-**
-The application supports one to four camera inputs, along with replaying local video files. Optional shared-landmark calibration enables a floor map and coordinated tracking across camera views.
+| Metric | Description |
+| --- | --- |
+| **Inside** | Estimated occupancy based on recorded entries minus exits |
+| **Entered** | Entries recorded during the session |
+| **Exited** | Exits recorded during the session |
+| **Staff in view** | Tracked employees currently visible |
 
-Camera setup includes camera discovery, previews, mirroring, enable/disable controls, zone drawing, employee settings, timing controls, and optional recording.
+Timestamped entries, exits, and alerts are written to a local activity log. Crossing records include relevant guest or employee IDs and counts. Activity history is restored when the dashboard restarts; guest tracking and session counters have separate lifecycles.
 
-We added Windows setup and launch files, a macOS launcher, manual installation instructions, and troubleshooting documentation. Your current working camera layout is included as walkout.multi.example.yaml. Launchers copy it into a local configuration when needed, and the README explains how another user can reconfigure it.
+### Notifications and multiple cameras
 
-The main technology stack is:
+- **Sound:** Enable, mute, or test alert chimes. Reloading saved alert history does not replay notification sounds.
+- **WhatsApp:** Send new counter-wait and possible walk-out notifications through Twilio, including the guest ID, message, and timestamp. Photos and clips stay local.
+- **Camera inputs:** Use **1–4 cameras** or replay local video files.
+- **Multi-camera calibration:** Optionally define shared landmarks for a floor map and coordinated tracking between views.
+- **Camera configuration:** Discover cameras, preview feeds, mirror images, enable or disable sources, draw zones, configure employee detection and timers, and enable optional recording.
+
+## Technology stack
 
 | Component | Technology |
-|---|---|
+| --- | --- |
 | Application and monitoring logic | Python |
-| Person detection | Ultralytics YOLO and PyTorch |
-| Video processing and image analysis | OpenCV and NumPy |
-| Tracking | ByteTrack plus additional identity and multi-camera logic |
-| Local web server and API | FastAPI and Uvicorn |
-| Dashboard and setup interface | HTML, CSS, and JavaScript |
+| Person detection | Ultralytics YOLO, PyTorch |
+| Image and video processing | OpenCV, NumPy |
+| Tracking | ByteTrack and additional identity/multi-camera logic |
+| Local web server and API | FastAPI, Uvicorn |
+| Dashboard and setup UI | HTML, CSS, JavaScript |
 | Configuration | YAML |
 | Activity and alert records | Local JSONL files |
-| WhatsApp delivery | Twilio through HTTP requests |
-| Verification | Pytest, Node.js tests, and Ruff |
+| WhatsApp notifications | Twilio via HTTP requests |
+| Tests and linting | Pytest, Node.js tests, Ruff |
 
-## Install and run on Windows
+## Installation
 
-Use Python **3.11** with the Python launcher (`py`) installed. Internet access is needed to install dependencies and download YOLO weights on the first monitoring run. Node.js is optional and only needed for the static demo and JavaScript tests.
+### Requirements
 
-1. Clone this repository or extract its ZIP, then open the project folder.
-2. Double-click **Setup Surveillance.bat**. It creates `.venv`, installs dependencies, and runs a synthetic check.
-3. Double-click **Open Surveillance.bat**. It copies the example camera setup if no local setup exists and opens the dashboard.
-4. Choose **Camera setup**, connect previews, and adjust the configuration for your cameras before starting monitoring.
+- **Python 3.11** (recommended for both supported setup paths).
+- A camera connected to the computer, or a local video file for replay.
+- Internet access for dependency installation and the initial download of YOLO weights.
+- **Node.js (optional):** Required only for the static demo build and JavaScript tests.
 
-Keep the launcher window open while the app runs. Use **Stop cameras** to release the cameras and Ctrl+C in the launcher to stop the server.
+### Windows: recommended setup
 
-PowerShell installation alternative, from the project folder:
+1. Clone this repository or download and extract its ZIP file.
+2. Open the project folder and double-click **`Setup Surveillance.bat`**. This creates `.venv`, installs dependencies, and runs a synthetic check.
+3. Double-click **`Open Surveillance.bat`**. It creates a local camera configuration from the example **only if one does not already exist**, then opens the dashboard.
+4. Open **Camera setup**, connect the camera previews, adjust the zones and settings for your environment, and start monitoring.
+
+Keep the launcher window open while using the app. Use **Stop cameras** to release camera devices, and press **Ctrl+C** in the launcher window to stop the server.
+
+**Windows: manual PowerShell setup**
+
+Run these commands from the project directory:
 
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item walkout.multi.example.yaml walkout.multi.yaml
+if (-not (Test-Path walkout.multi.yaml)) {
+    Copy-Item walkout.multi.example.yaml walkout.multi.yaml
+}
 .\.venv\Scripts\python.exe -m survai.main --web
 ```
 
-Run the copy command only on the first setup: it replaces the destination if it already exists. The normal launchers preserve an existing local configuration.
+The conditional copy preserves an existing `walkout.multi.yaml` file.
 
-## Install and run on macOS or Linux
+### macOS or Linux
 
-Use Python 3.11 and run these commands from the project folder:
+Run these commands from the project directory:
 
 ```sh
 python3.11 -m venv .venv
@@ -153,52 +140,85 @@ cp -n walkout.multi.example.yaml walkout.multi.yaml
 .venv/bin/python -m survai.main --web
 ```
 
-On macOS, after installation you can also run `zsh "Open Surveillance.command"`. Allow your terminal or IDE to use the camera when the operating system requests it. Python 3.12 and 3.13 are permitted by the package metadata, but the Windows setup script specifically selects 3.11.
+On macOS, after installation you can alternatively launch with:
 
-## The included example and how to reconfigure it
+```sh
+zsh "Open Surveillance.command"
+```
 
-[`walkout.multi.example.yaml`](walkout.multi.example.yaml) is a snapshot of the project's current working camera layout. It includes:
+Grant camera permissions when prompted by the operating system. The package metadata also permits Python 3.12 and 3.13, but the Windows setup script specifically uses Python 3.11.
 
-| Setting | Example value |
+## Camera setup and configuration
+
+The repository includes [`walkout.multi.example.yaml`](walkout.multi.example.yaml), a sample configuration based on the project's working camera layout.
+
+| Setting | Included example |
 | --- | --- |
-| Camera | One enabled camera, named **Cam**, source index `0` |
+| Camera | One enabled camera named **Cam**, source index `0` |
 | Mirroring | Enabled |
 | Walk-out rules | Enabled |
 | RGB employee marker | Enabled |
-| Dining zone | Most of the left half of the image |
+| Dining zone | Most of the left half of the camera image |
 | Counter zone | Lower-right area |
 | Exit zone and saved door line | Near the right edge |
 | Shared-floor calibration | None |
 
-These coordinates fit the original camera view. Redraw them for your camera position and room. Both **Walk-out rules** and **RGB employee marker** are enabled in this example, which hides the door-line overlay; saved door geometry can still be used for counting. To see and edit the door line, temporarily uncheck either setting, then restore the combination you want.
+**These zones are specific to the original camera position.** Redraw them before using a different camera or physical layout.
 
-Make changes in **Camera setup**:
+### Configure your cameras
 
-1. **Stop monitoring first.** Camera and geometry settings can be edited while stopped or while setup previews are running.
-2. Use **Find cameras**, then change the **Camera index or video path** for each input. Camera `0` is only an example; other computers may use different indices. Enable the cameras you want, set their names, and check **Mirror** against the actual preview. Every enabled live camera needs a different index.
-3. Click **Connect previews**. Wait for a usable image. You can freeze the preview while drawing.
-4. Select **Dining zone**, **Counter zone**, or **Exit zone**, choose the camera, click **Redraw zone**, and click two opposite corners. Click **Apply zone**. Rectangles have 90-degree angles. Use **Exit line** instead if you want a line rather than an exit rectangle.
-5. To count doorway crossings, select **Door counting line**, click its two endpoints, then click inside the store to set the entry direction. Apply it. Use one doorway-counting camera.
-6. Turn **Walk-out rules** and **RGB employee marker** on or off as appropriate. When marker detection is enabled, download the marker from the page and display it as instructed. **Employee apron color** is an alternative that you can sample from the preview.
-7. Adjust **Dining dwell**, **Counter payment dwell**, **New customer wait**, and **Exit grace**. This example inherits the demo defaults: 3 seconds dining, 2 seconds counter payment, 5 seconds new-customer wait, and 1.5 seconds exit grace. Change these to suit your operation.
-8. For multiple cameras, add each input and optionally calibrate **Shared landmarks** if you need a shared floor map. Changing camera source or mirroring can require redrawing calibration.
-9. Click **Save setup**, then **Save and start monitoring** when ready.
+1. **Stop monitoring** before editing camera and geometry settings. Setup previews may remain active.
+2. In **Camera setup**, click **Find cameras**. Set each **Camera index or video path**, choose a name, enable the desired inputs, and check **Mirror** against the preview. Each enabled live camera needs a distinct index.
+3. Click **Connect previews**. Once the image appears, you can freeze it while drawing zones.
+4. Choose **Dining zone**, **Counter zone**, or **Exit zone** and select the relevant camera. Click **Redraw zone**, choose two opposite corners, then click **Apply zone**. Use **Exit line** if a line is more appropriate than a rectangle.
+5. To record doorway counts, select **Door counting line**, click its endpoints, and click inside the store to indicate the entry direction. Apply the line. Use one doorway-counting camera.
+6. Configure **Walk-out rules** and employee identification. For RGB markers, download the marker in the setup page and display it as instructed. Alternatively, sample an **Employee apron color** from the preview.
+7. Adjust the timing rules. The included example inherits these demo defaults:
 
-Browser changes are saved to **`walkout.multi.yaml`**, which is ignored by Git. They do not modify the published example. To reset, stop the app, back up your local YAML, then copy `walkout.multi.example.yaml` over it. Edit the example intentionally if you want to publish a different default.
+   | Rule | Default |
+   | --- | --- |
+   | Dining dwell | 3 seconds |
+   | Counter payment dwell | 2 seconds |
+   | New customer wait | 5 seconds |
+   | Exit grace | 1.5 seconds |
 
-The visible **Counter** zone is stored internally as `pay_zone`. The root `config.yaml` belongs to older rule tests; use Camera setup or `walkout.multi.yaml` for the current app.
+8. For multiple cameras, add the additional inputs. If you need a shared floor map, configure **Shared landmarks**. Changing a camera source or mirroring may require recalibration.
+9. Click **Save setup**, then **Save and start monitoring**.
 
-## Alerts and optional WhatsApp
+**Door-line visibility:** If both **Walk-out rules** and **RGB employee marker** are on, the door line is visually hidden. Temporarily disable either option to view or edit the line, then restore the desired settings.
 
-Enable sound in the dashboard to hear new alerts. **Has paid** confirms the selected guest's payment; employees do not have guest payment states. A possible walk-out is a prompt to review the evidence and verify payment.
+### Where settings are saved
 
-Counter-wait alerts create log entries without saving a photo or clip for that alert. Walk-out alerts can save a snapshot, clip, and best-effort face crop when available. Guest cards use icons. Evidence is stored under `alerts/`, and full-feed recordings are optional under `recordings/`.
+Changes made in the browser are saved to `walkout.multi.yaml`, which is ignored by Git. They do not modify `walkout.multi.example.yaml`.
 
-For WhatsApp, open **Camera setup → WhatsApp notifications** and follow [`WHATSAPP_SETUP.md`](WHATSAPP_SETUP.md). Enter your own Twilio account details locally, enable alerts, and send a test. Credentials are not included in the repository. The computer needs to remain running and online for notifications.
+To reset the configuration, stop the application, back up your current YAML file, and replace it with a copy of the example. Only edit the example itself when you intentionally want to publish different defaults.
 
-## Checks and troubleshooting
+The root `config.yaml` is used by older rule tests. Use **Camera setup** or `walkout.multi.yaml` for the current application.
 
-Windows commands:
+## Alerts, recordings, and WhatsApp
+
+The dashboard can play a sound for new alerts after **Enable sound** is selected. Payment updates are guest-specific; employee cards have no guest payment controls.
+
+| Event | Activity log | Local media evidence | Optional notification |
+| --- | --- | --- | --- |
+| Counter-wait alert | Yes | No photo or clip | Sound and WhatsApp |
+| Possible walk-out | Yes | Snapshot, clip, and optional face crop | Sound and WhatsApp |
+
+Evidence is stored locally under `alerts/`. Optional full-feed recordings are stored under `recordings/`.
+
+To set up WhatsApp:
+
+1. Open **Camera setup → WhatsApp notifications**.
+2. Follow [`WHATSAPP_SETUP.md`](WHATSAPP_SETUP.md) to configure your own Twilio credentials and sender/recipient numbers.
+3. Enable automatic notifications and send a test message.
+
+The integration supports an approved Twilio template **Content SID** and reports test-message errors. Credentials are stored in a local, Git-ignored `.env` file; they are not supplied with the repository. The computer must be running and connected to the internet for WhatsApp delivery.
+
+Because the application can save images and videos of people, limit access to its local evidence and recordings and follow applicable privacy and camera-notice requirements.
+
+## Testing and troubleshooting
+
+### Run checks on Windows
 
 ```powershell
 .\.venv\Scripts\python.exe -m survai.main --selftest
@@ -208,23 +228,31 @@ Windows commands:
 node --test tests/test_alert_sound.cjs tests/test_guest_payment.cjs tests/test_whatsapp.cjs
 ```
 
-On macOS/Linux, replace `.\.venv\Scripts\python.exe` with `.venv/bin/python`. The synthetic checks do not require a camera or downloaded detection weights.
+On macOS and Linux, replace `.\.venv\Scripts\python.exe` with `.venv/bin/python`. The synthetic self-tests do not need a camera or downloaded model weights. The Node.js command requires Node.js to be installed.
 
-One existing retention test creates a symbolic link. On Windows without symlink privileges it fails with `WinError 1314`. You can run the remaining tests with:
+**Windows symlink permission issue:** One evidence-retention test creates a symbolic link and may fail with `WinError 1314` on a Windows system without symlink privileges. To run the other tests:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q -k "not test_evidence_retention_scopes_cleanup_and_updates_history"
 ```
 
-- **Camera will not open:** close other apps using it, check OS camera permissions, stop the current session, and use **Find cameras** to confirm the index.
-- **Missing/incomplete dependencies:** rerun **Setup Surveillance.bat**, or reinstall using the virtual environment's Python and `requirements.txt`.
-- **Port 8765 is busy:** use `python -m survai.main --web --port 8766` with the appropriate virtual-environment Python.
-- **No weights available offline:** download weights first or supply a local model with `--weights path/to/yolov8n.pt`. Weight downloads are excluded from Git.
+### Common issues
 
-## Static demonstration
+| Problem | What to try |
+| --- | --- |
+| Camera does not open | Close other apps using it, check OS camera permissions, stop the current session, and use **Find cameras** to verify the source index. |
+| Dependencies are missing | Run **`Setup Surveillance.bat`** again or install `requirements.txt` with the virtual environment's Python. |
+| Port `8765` is occupied | Start the server with a different port, such as `.\.venv\Scripts\python.exe -m survai.main --web --port 8766` on Windows. |
+| Model weights are unavailable offline | Download the model weights while online or pass a local model with `--weights path/to/yolov8n.pt`. Model downloads are not tracked in Git. |
+
+## Static demo
+
+The repository also contains a **static dashboard demo** with simulated guest activity and alerts. Build it with Node.js:
 
 ```sh
 node scripts/build-dashboard.mjs
 ```
 
-This generates `dist/index.html` with simulated guests and alerts. `vercel.json` selects this static build. The live Python camera server is a separate process; publishing the static demo does not start it.
+This creates `dist/index.html`. The `vercel.json` configuration selects this static build for deployment.
+
+**The static demo is not the live monitoring application.** Deploying it does not start the Python camera-processing server; the live application must run separately.
